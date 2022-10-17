@@ -1,10 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/shawnburke/dnsmock/config"
+	"go.uber.org/fx/fxtest"
 )
 
 func TestMain(m *testing.T) {
@@ -12,6 +12,6 @@ func TestMain(m *testing.T) {
 
 	graph := buildGraph(params)
 
-	fmt.Println(graph.String())
+	fxtest.New(m, graph)
 
 }

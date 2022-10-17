@@ -2,6 +2,8 @@ package proxy
 
 import (
 	"context"
+	"errors"
+	"sync"
 	"time"
 
 	"github.com/miekg/dns"
@@ -20,12 +22,8 @@ func New(logger *zap.Logger, cfg config.Parameters, lifecycle fx.Lifecycle) *pro
 	if lifecycle != nil {
 		lifecycle.Append(fx.Hook{
 			OnStart: func(ctx context.Context) error {
-				var err error
-				go func() {
-					err = p.Start()
-				}()
-				time.Sleep(1 * time.Second)
-				return err
+
+				return p.Start()
 			},
 			OnStop: func(ctx context.Context) error {
 				return p.Stop()
@@ -37,19 +35,33 @@ func New(logger *zap.Logger, cfg config.Parameters, lifecycle fx.Lifecycle) *pro
 }
 
 type proxy struct {
+	sync.Mutex
 	logger *zap.Logger
 	config config.Parameters
 	server *dns.Server
 }
 
 func (p *proxy) Start() error {
+	p.Lock()
+	defer p.Unlock()
+	var err error
+
+	if p.server != nil {
+		return errors.New("AlreadyStarted")
+	}
+
 	p.server = &dns.Server{Addr: p.config.ListenAddr, Net: "udp"}
 	p.server.Handler = dns.HandlerFunc(p.handler)
-	p.logger.Info("Starting DNS server", zap.String("addr", p.config.ListenAddr))
-	err := p.server.ListenAndServe()
-	if err != nil {
-		p.logger.Error("Failed to start DNS server", zap.Error(err))
-	}
+
+	go func() {
+
+		p.logger.Info("Starting DNS server", zap.String("addr", p.config.ListenAddr))
+		err := p.server.ListenAndServe()
+		if err != nil {
+			p.logger.Error("Failed to start DNS server", zap.Error(err))
+		}
+	}()
+	time.Sleep(time.Millisecond * 100)
 	return err
 }
 
