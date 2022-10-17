@@ -1,6 +1,8 @@
 package main
 
 import (
+	"time"
+
 	"github.com/shawnburke/dnsmock/config"
 	"github.com/shawnburke/dnsmock/proxy"
 	"go.uber.org/fx"
@@ -12,6 +14,7 @@ func main() {
 	cfg := config.Parameters{
 		ListenAddr:  "0.0.0.0:50053",
 		Downstreams: []string{"8.8.8.8:53"},
+		RecordTTL:   time.Minute,
 	}
 
 	graph := buildGraph(cfg)

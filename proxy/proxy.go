@@ -12,11 +12,20 @@ import (
 	"go.uber.org/zap"
 )
 
+type proxy struct {
+	sync.Mutex
+	logger   *zap.Logger
+	config   config.Parameters
+	server   *dns.Server
+	recorder *recorder
+}
+
 func New(logger *zap.Logger, cfg config.Parameters, lifecycle fx.Lifecycle) *proxy {
 
 	p := &proxy{
-		logger: logger,
-		config: cfg,
+		logger:   logger,
+		config:   cfg,
+		recorder: newRecorder(),
 	}
 
 	if lifecycle != nil {
@@ -32,13 +41,6 @@ func New(logger *zap.Logger, cfg config.Parameters, lifecycle fx.Lifecycle) *pro
 	}
 
 	return p
-}
-
-type proxy struct {
-	sync.Mutex
-	logger *zap.Logger
-	config config.Parameters
-	server *dns.Server
 }
 
 func (p *proxy) Start() error {
@@ -65,18 +67,35 @@ func (p *proxy) Start() error {
 	return err
 }
 
+func (p *proxy) checkCache(question *dns.Msg) (dns.Msg, bool) {
+	if p.config.RecordTTL == 0 {
+		return dns.Msg{}, false
+	}
+	return p.recorder.get(question, p.config.RecordTTL)
+}
+
 func (p *proxy) handler(w dns.ResponseWriter, question *dns.Msg) {
 
-	response, err := p.forward(p.config.Downstreams[0], question)
-	if err != nil {
-		p.logger.Error("Failed to forward DNS request", zap.Error(err))
-		msg := &dns.Msg{}
-		msg.SetRcode(question, dns.RcodeServerFailure)
-		w.WriteMsg(msg)
-		return
+	response, ok := p.checkCache(question)
+	if !ok {
+		r2, err := p.forward(p.config.Downstreams[0], question)
+		if err != nil {
+			p.logger.Error("Failed to forward DNS request", zap.Error(err))
+			msg := &dns.Msg{}
+			msg.SetRcode(question, dns.RcodeServerFailure)
+			w.WriteMsg(msg)
+			return
+		}
+		response = *r2
+		p.recorder.add(question, r2)
+
+	} else {
+		p.logger.Debug("Using cached response",
+			zap.String("question", question.Question[0].String()),
+			zap.String("response", response.String()))
 	}
 	response.SetReply(question)
-	w.WriteMsg(response)
+	w.WriteMsg(&response)
 }
 
 func (p *proxy) forward(server string, m *dns.Msg) (*dns.Msg, error) {
