@@ -10,7 +10,7 @@ import (
 func TestMain(m *testing.T) {
 	params := config.Parameters{}
 
-	graph := buildGraph(params)
+	graph := buildGraph(params, nil)
 
 	fxtest.New(m, graph)
 

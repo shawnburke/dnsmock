@@ -8,24 +8,35 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/shawnburke/dnsmock/config"
+	"github.com/shawnburke/dnsmock/spec"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 )
 
 type proxy struct {
 	sync.Mutex
-	logger   *zap.Logger
-	config   config.Parameters
-	server   *dns.Server
-	recorder *recorder
+	logger    *zap.Logger
+	config    config.Parameters
+	server    *dns.Server
+	forwarder Forwarder
+	responses spec.Responses
+
+	useCache bool
 }
 
-func New(logger *zap.Logger, cfg config.Parameters, lifecycle fx.Lifecycle) *proxy {
+func New(
+	logger *zap.Logger,
+	cfg config.Parameters,
+	responses spec.Responses,
+	forwarder Forwarder,
+	lifecycle fx.Lifecycle) *proxy {
 
 	p := &proxy{
-		logger:   logger,
-		config:   cfg,
-		recorder: newRecorder(),
+		logger:    logger,
+		config:    cfg,
+		forwarder: forwarder,
+		responses: responses,
+		useCache:  cfg.Record || responses.Count() > 0,
 	}
 
 	if lifecycle != nil {
@@ -67,18 +78,16 @@ func (p *proxy) Start() error {
 	return err
 }
 
-func (p *proxy) checkCache(question *dns.Msg) (dns.Msg, bool) {
-	if p.config.RecordTTL == 0 {
-		return dns.Msg{}, false
-	}
-	return p.recorder.get(question, p.config.RecordTTL)
-}
-
 func (p *proxy) handler(w dns.ResponseWriter, question *dns.Msg) {
 
-	response, ok := p.checkCache(question)
-	if !ok {
-		r2, err := p.forward(p.config.Downstreams[0], question)
+	var response *dns.Msg
+
+	if p.useCache {
+		response = p.responses.Find(question)
+	}
+	source := "cached"
+	if response == nil {
+		r2, err := p.forwarder.Forward(question)
 		if err != nil {
 			p.logger.Error("Failed to forward DNS request", zap.Error(err))
 			msg := &dns.Msg{}
@@ -86,29 +95,24 @@ func (p *proxy) handler(w dns.ResponseWriter, question *dns.Msg) {
 			w.WriteMsg(msg)
 			return
 		}
-		response = *r2
-		p.recorder.add(question, r2)
-
-	} else {
-		p.logger.Debug("Using cached response",
-			zap.String("question", question.Question[0].String()),
-			zap.String("response", response.String()))
+		response = r2
+		source = "forwarded"
+		if p.config.Record {
+			p.responses.Add(question, r2)
+		}
 	}
+	answer := "(none)"
+	if len(response.Answer) > 0 {
+		answer = response.Answer[0].String()
+	}
+
+	p.logger.Debug("Got response",
+		zap.String("source", source),
+		zap.String("question", question.Question[0].String()),
+		zap.Any("first-answer", answer))
+
 	response.SetReply(question)
-	w.WriteMsg(&response)
-}
-
-func (p *proxy) forward(server string, m *dns.Msg) (*dns.Msg, error) {
-	dnsClient := new(dns.Client)
-	dnsClient.Net = "udp"
-	p.logger.Debug("Forwarding DNS request", zap.String("server", server), zap.String("question", m.Question[0].String()))
-	response, _, err := dnsClient.Exchange(m, server)
-	if err != nil {
-		p.logger.Error("Failed to forward DNS request", zap.Error(err), zap.String("server", server), zap.String("question", m.Question[0].String()))
-		return nil, err
-	}
-	p.logger.Debug("Forwarded DNS request", zap.String("server", server), zap.String("question", m.Question[0].String()), zap.String("response", response.String()))
-	return response, nil
+	w.WriteMsg(response)
 }
 
 func (p *proxy) Stop() error {
