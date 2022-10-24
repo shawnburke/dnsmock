@@ -2,16 +2,14 @@ package config
 
 import (
 	"strings"
-	"time"
 )
 
 type Parameters struct {
-	ListenAddr     string        `yaml:"listen_addr"`
-	DownstreamsRaw string        `yaml:"downstreams"`
-	Search         []string      `yaml:"search"`
-	RecordTTL      time.Duration `yaml:"record_ttl"`
-	Record         bool          `yaml:"record"`
-	ReplayFile     string        `yaml:"replay_file"`
+	ListenAddr     string `yaml:"listen_addr"`
+	DownstreamsRaw string `yaml:"downstreams"`
+	Record         bool   `yaml:"record"`
+	ReplayFile     string `yaml:"replay_file"`
+	RecordFile     string `yaml:"record_file"`
 }
 
 func (p Parameters) Downstreams() []string {

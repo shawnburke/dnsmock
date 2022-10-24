@@ -23,23 +23,26 @@ func findHelper(content string, question dns.Question) []dns.RR {
 }
 
 var content = `
-
-sofi.com.:
-    A:
-        - "sofi.com.\t197\tIN\tA\t172.64.154.149"
-        - "sofi.com.\t197\tIN\tA\t104.18.33.107"
-"*.sofitest.com.":
-    A:
-        - "{{Name}}\t300\tIN\tA\t1.2.3.4"
-"*": 
-    SRV:
+rules:
+    - name: "internet.com."
+      records:
+        A:
+            - "internet.com.\t197\tIN\tA\t172.64.154.149"
+            - "internet.com.\t197\tIN\tA\t104.18.33.107"
+    - name: "*.awstest.com."
+      records:
+        A:
+          - "{{Name}}\t300\tIN\tA\t1.2.3.4"
+    - name: "*" 
+      records:
+        SRV:
         - "{{Name}}\t60\tIN\tSRV\t0 100 42 {{Name}}"
 `
 
 func TestFromFile(t *testing.T) {
 
 	answer := findHelper(content, dns.Question{
-		Name:   "sofi.com.",
+		Name:   "internet.com.",
 		Qtype:  dns.TypeA,
 		Qclass: dns.ClassINET,
 	})
@@ -53,14 +56,14 @@ func TestFromFile(t *testing.T) {
 func TestWildcard(t *testing.T) {
 
 	answer := findHelper(content, dns.Question{
-		Name:   "test.sofitest.com.",
+		Name:   "test.awstest.com.",
 		Qtype:  dns.TypeA,
 		Qclass: dns.ClassINET,
 	})
 	require.Len(t, answer, 1)
 
 	a := answer[0].(*dns.A)
-	require.Equal(t, "test.sofitest.com.\t300\tIN\tA\t1.2.3.4", a.String())
+	require.Equal(t, "test.awstest.com.\t300\tIN\tA\t1.2.3.4", a.String())
 
 }
 

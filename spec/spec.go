@@ -8,13 +8,19 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type Responses map[string]map[string][]string
-
-func New() Responses {
-	return Responses{}
+type Responses struct {
+	Rules []*Rule `yaml:"rules"`
+}
+type Rule struct {
+	Name    string              `yaml:"name"`
+	Records map[string][]string `yaml:"records"`
 }
 
-func FromFile(path string) Responses {
+func New() *Responses {
+	return &Responses{}
+}
+
+func FromFile(path string) *Responses {
 
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -23,8 +29,8 @@ func FromFile(path string) Responses {
 	return FromYAML(string(content))
 }
 
-func FromYAML(y string) Responses {
-	r := Responses{}
+func FromYAML(y string) *Responses {
+	r := &Responses{}
 
 	err := yaml.Unmarshal([]byte(y), &r)
 	if err != nil {
@@ -42,14 +48,28 @@ func Parse(val string) Responses {
 	return r
 }
 
-func (r Responses) Add(query *dns.Msg, response *dns.Msg) {
+func (r *Responses) Add(query *dns.Msg, response *dns.Msg) {
 
 	question := query.Question[0]
 	domain := question.Name
 
 	qtype := dns.TypeToString[question.Qtype]
-	if r[domain] == nil {
-		r[domain] = map[string][]string{}
+
+	var rule *Rule
+
+	for _, r := range r.Rules {
+		if r.Name == domain {
+			rule = r
+			break
+		}
+	}
+
+	if rule == nil {
+		rule = &Rule{
+			Name:    domain,
+			Records: map[string][]string{},
+		}
+		r.Rules = append(r.Rules, rule)
 	}
 
 	val := []string{}
@@ -58,33 +78,42 @@ func (r Responses) Add(query *dns.Msg, response *dns.Msg) {
 		val = append(val, a.String())
 	}
 
-	r[domain][qtype] = val
+	rule.Records[qtype] = val
 }
 
 func (r Responses) Count() int {
-	return len(r)
+	return len(r.Rules)
 }
 
 func normalizeName(d string) string {
 	return dns.CanonicalName(d)
 }
 
-func (r Responses) FindDomain(domain string) map[string][]string {
+func (r Responses) FindDomains(domain string) []*Rule {
 
 	domain = normalizeName(domain)
 
-	for k, v := range r {
-		k = normalizeName(k)
+	rules := []*Rule{}
+
+	for _, rule := range r.Rules {
+		k := normalizeName(rule.Name)
+
+		if k == domain {
+			rules = append(rules, rule)
+			continue
+		}
+
 		if strings.HasPrefix(k, "*") {
 			d := k[1:]
 
 			if strings.HasSuffix(domain, d) {
-				return v
+				rules = append(rules, rule)
+				continue
 			}
 		}
 	}
 
-	return r[domain]
+	return rules
 }
 
 func (r Responses) expand(query dns.Question, val string) string {
@@ -104,31 +133,34 @@ func (r Responses) Find(query *dns.Msg) *dns.Msg {
 
 	qtype := dns.TypeToString[question.Qtype]
 
-	d := r.FindDomain(domain)
-	if d == nil {
+	d := r.FindDomains(domain)
+	if len(d) == 0 {
 		return nil
 	}
 
-	val := d[qtype]
-	if val == nil {
-		return nil
-	}
+	for _, rule := range r.FindDomains(domain) {
+		val := rule.Records[qtype]
+		if val != nil {
+			response := &dns.Msg{}
+			response.SetReply(query)
 
-	response := &dns.Msg{}
-	response.SetReply(query)
+			for _, v := range val {
 
-	for _, v := range val {
+				v2 := r.expand(question, v)
 
-		v2 := r.expand(question, v)
+				rr, err := dns.NewRR(v2)
+				if err != nil {
+					panic(err)
+				}
+				response.Answer = append(response.Answer, rr)
+			}
 
-		rr, err := dns.NewRR(v2)
-		if err != nil {
-			panic(err)
+			return response
 		}
-		response.Answer = append(response.Answer, rr)
 	}
 
-	return response
+	return nil
+
 }
 
 func (r Responses) YAML() string {
