@@ -1,15 +1,21 @@
 package config
 
 import (
+	"fmt"
 	"strings"
 )
 
 type Parameters struct {
-	ListenAddr     string `yaml:"listen_addr"`
+	Port           int    `yaml:"port"`
 	DownstreamsRaw string `yaml:"downstreams"`
 	Record         bool   `yaml:"record"`
 	ReplayFile     string `yaml:"replay_file"`
 	RecordFile     string `yaml:"record_file"`
+	Verbose        bool   `yaml:"verbose"`
+}
+
+func (p Parameters) ListenAddr() string {
+	return fmt.Sprintf(":%d", p.Port)
 }
 
 func (p Parameters) Downstreams() []string {
