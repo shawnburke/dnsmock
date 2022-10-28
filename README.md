@@ -1,5 +1,5 @@
 # DNSMOCK
-
+Capture and replay DNS results with a simple YAML configuration
 
 ![Go Test](https://github.com/shawnburke/dnsmock/actions/workflows/go.yml/badge.svg)  
 
@@ -8,9 +8,13 @@
 [![codecov](https://codecov.io/gh/shawnburke/dnsmock/branch/main/graph/badge.svg)](https://codecov.io/gh/shawnburke/dnsmock)
 
 
-DnsMock is a Go library that will return mocked DNS responses for any record type, in an easy to author YAML format.
+DnsMock is a Go library that will return mocked DNS responses for any record type, in an easy to author YAML format.  Think of it as `/etc/hosts` on steroids, with added support for:
 
-It also can be run as a server that will record DNS results and return them as a YAML file, as well as replaying those results.
+* Record resolution for all record types (not just A)
+* Capturing and replaying DNS responses
+* Wildcards and templating of query responses, for example capturing and responding to all queries for `*.foo.com`
+
+It also can be run as a server that will record DNS results and return them as a YAML file, as well as replaying those results, including as a [Docker image](https://hub.docker.com/repository/docker/shawnb576/dnsmock).
 
 Let's look at a simple example:
 
@@ -75,10 +79,14 @@ When you exit this will output the queries and responses to stdout. Capture thos
 Note this is also available as a Docker image:
 
 ```bash
-docker build -t dnsmock:local .
-docker run -p "50053:53/udp" -d dnsmock:local -record
+docker run -p "50053:53/udp" -d shawnb575/dnsmock:latest --record >replay.yml
 dig @0.0.0.0 -p 50053 google.com
+...
+docker run -p "50053:53/udp"  -v "./replay.yml:/replay.yml" -d shawnb575/dnsmock:latest --replay-file /replay.yml
 ```
+
+
+
 
 ## Test Library Usage
 
