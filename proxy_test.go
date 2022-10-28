@@ -13,7 +13,7 @@ var logger = zap.NewNop()
 
 func TestProxySimple(t *testing.T) {
 
-	resolver := resolver.NewDns("8.8.8.8", logger)
+	resolver := resolver.NewLocal("", logger)
 
 	p := New("", resolver, logger)
 
