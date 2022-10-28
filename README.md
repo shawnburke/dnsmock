@@ -1,12 +1,19 @@
 # DNSMOCK
 
+
+![Go Test](https://github.com/shawnburke/dnsmock/actions/workflows/go.yml/badge.svg)  
+
+![Go Report Card](https://goreportcard.com/badge/github.com/shawnburke/dnsmock)
+
+[![codecov](https://codecov.io/gh/shawnburke/dnsmock/branch/main/graph/badge.svg)](https://codecov.io/gh/shawnburke/dnsmock)
+
 Mocking server and library.
 
 ## Server Usage
 
 To use as an executable simply run the cmd package, with the following params:
 
-* `--listen-addr`: Address to listen on, default is 0.0.0.0:0
+* `--port`: Port to listen on, default is 53
 * `--record`: Record DNS queries and responses, output them to stdout at exit
 * `--record-file`: Record DNS queries and responses to specified file at exit.
 * `--replay-file`: Replay the responses in the file (see below for details)
@@ -14,7 +21,7 @@ To use as an executable simply run the cmd package, with the following params:
 
 ```bash
 go build -o dnsmock ./cmd
-./dnsmock --listen-addr "0.0.0.0:50053" --record --downstreams "8.8.8.8,8.4.4.4"
+./dnsmock --port 53" --record --downstreams "8.8.8.8,8.4.4.4"
 ```
 
 Now test with
@@ -24,6 +31,16 @@ dig @0.0.0.0 -p 50053 google.com
 ```
 
 When you exit this will output the queries and responses to stdout. Capture those to a file like "replay.yaml".
+
+### Docker 
+
+Note this is also available as a Docker image:
+
+```bash
+docker build -t dnsmock:local .
+docker run -p "50053:53/udp" -d dnsmock:local -record
+dig @0.0.0.0 -p 50053 google.com
+```
 
 ## Test Library Usage
 
