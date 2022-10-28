@@ -3,13 +3,51 @@
 
 ![Go Test](https://github.com/shawnburke/dnsmock/actions/workflows/go.yml/badge.svg)  
 
-![Go Report Card](https://goreportcard.com/badge/github.com/shawnburke/dnsmock)
+[![Go Report Card](https://goreportcard.com/badge/github.com/shawnburke/dnsmock)](https://goreportcard.com/report/github.com/shawnburke/dnsmock)
 
 [![codecov](https://codecov.io/gh/shawnburke/dnsmock/branch/main/graph/badge.svg)](https://codecov.io/gh/shawnburke/dnsmock)
 
-Mocking server and library.
 
-## Server Usage
+DnsMock is a Go library that will return mocked DNS responses for any record type, in an easy to author YAML format.
+
+It also can be run as a server that will record DNS results and return them as a YAML file, as well as replaying those results.
+
+Let's look at a simple example:
+
+```yaml
+# replay.yaml
+rules:
+ - name: google.com.
+   records:
+    A:
+    - "google.com. 300 IN A 4.3.2.1"
+```
+
+Now run the server to return those results:
+
+```bash
+$./dnsmock -replay-file replay.yaml -port 9053 &
+$ dig @localhost -p 9053 google.com
+
+; <<>> DiG 9.16.1-Ubuntu <<>> @localhost -p 9053 google.com
+; (2 servers found)
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 5540
+;; flags: qr rd; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 0
+;; WARNING: recursion requested but not available
+
+;; QUESTION SECTION:
+;google.com.                    IN      A
+
+;; ANSWER SECTION:
+google.com.             300     IN      A       4.3.2.1
+
+```
+
+This can also be run as a Docker container for easy portability.
+
+## Server Usage Detail
 
 To use as an executable simply run the cmd package, with the following params:
 
