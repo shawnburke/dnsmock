@@ -25,7 +25,7 @@ func TestProxySimple(t *testing.T) {
 		MsgHdr: dns.MsgHdr{},
 		Question: []dns.Question{
 			{
-				Name:   "google.com.",
+				Name:   "github.com.",
 				Qtype:  dns.TypeA,
 				Qclass: dns.ClassINET,
 			},
