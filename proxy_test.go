@@ -1,6 +1,7 @@
 package dnsmock
 
 import (
+	"os"
 	"testing"
 
 	"github.com/miekg/dns"
@@ -12,6 +13,9 @@ import (
 var logger = zap.NewNop()
 
 func TestProxySimple(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping test on CI")
+	}
 
 	resolver := resolver.NewLocal("", logger)
 
